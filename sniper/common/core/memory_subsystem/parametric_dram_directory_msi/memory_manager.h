@@ -255,7 +255,9 @@ namespace ParametricDramDirectoryMSI
          void setCacheCntlrAt(core_id_t core_id, MemComponent::component_t mem_component, CacheCntlr* cache_cntlr) { m_all_cache_cntlrs[CoreComponentType(core_id, mem_component)] = cache_cntlr; }
          NucaCache* getNucaCache(){ return m_nuca_cache; }
          void measureNucaStats();
-         void printPagetableOccupancyAtLevel(int level);
+         void printPagetableOccupancy();
+         void printL2PagetableOccupancy(std::vector<ptw_table*> queue_L3);
+         double printOccupancyOfThisTable(ptw_table* table, int id);
 
          HitWhere::where_t coreInitiateMemoryAccess(
                IntPtr eip,

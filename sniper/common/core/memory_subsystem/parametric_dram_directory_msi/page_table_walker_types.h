@@ -17,11 +17,14 @@ struct ptw_table_entry {
     struct ptw_table* next_level_table;
 };
 struct ptw_table{
+    int level;
+    int occupancy_address; // how many entries are occupied as physical address
+    int occupancy_table; // how many entries are occupied as next level page table
     struct ptw_table_entry* entries;
     int table_size;
 };
 
-ptw_table* InitiateTablePtw(int size);
+ptw_table* InitiateTablePtw(int size, int level);
 ptw_table_entry* CreateNewPtwEntryAtLevel(int level,int number_of_levels,int *level_indices,int *level_percentages,PageTableWalker *ptw, IntPtr address);
 
 #endif 

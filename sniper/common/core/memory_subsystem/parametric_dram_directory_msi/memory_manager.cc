@@ -89,6 +89,9 @@ MemoryManager::MemoryManager(Core* core,
    UInt32 dram_directory_max_hw_sharers = 0;
    String dram_directory_type_str;
    UInt32 dram_directory_home_lookup_param = 0;
+   page_table_entry_occupied_as_address[4] = {0}; 
+   page_table_entry_occupied_as_next_level_table[4] = {0};
+   page_table_entry_total[4] = {0};
    ComponentLatency dram_directory_cache_access_time(global_domain, 0);
 
    current_nuca_stamp = 0;
@@ -206,6 +209,7 @@ MemoryManager::MemoryManager(Core* core,
 
       registerStatsMetric("mmu", core->getId(), "migrations_requests",  &translation_stats.migrations_affected_request);
       registerStatsMetric("mmu", core->getId(), "migrations_delay",  &translation_stats.migrations_affected_latency);
+
 
 
       for (int i = HitWhere::WHERE_FIRST; i < HitWhere::NUM_HITWHERES; i++)
@@ -790,9 +794,9 @@ MemoryManager::~MemoryManager()
 {
    
    UInt32 i;
-
+   printPagetableOccupancy();
    getNetwork()->unregisterCallback(SHARED_MEM_1);
-
+   
    // Delete the Models
 
    if (m_itlb) delete m_itlb;
@@ -918,7 +922,6 @@ MemoryManager::coreInitiateMemoryAccess(
          modeled == Core::MEM_MODELED_NONE ? false : true, CacheBlockInfo::block_type_t::NON_PAGE_TABLE, tr_result.latency, shadow_cache);
 
   // metadata_stats.metadata_hit[result]++;
-
    updateTranslationCounters(tr_result,result);
    return result;
 }
@@ -1532,5 +1535,92 @@ MemoryManager::measureNucaStats()
    m_nuca_cache->measureStats();
 }
 
+
+void MemoryManager::printPagetableOccupancy() {
+   PageTableWalkerRadix* ptw_radix = dynamic_cast<PageTableWalkerRadix*>(ptw);
+   if (ptw_radix != nullptr) {
+      std::vector<ptw_table*> queue;
+      std::vector<ptw_table*> queue_PL3;
+      queue.push_back(ptw_radix->starting_table);
+
+      while (!queue.empty()) {
+         ptw_table* current_table = queue.front();
+         queue.erase(queue.begin());
+         int current_level = current_table->level;
+
+         if (current_level == 2) {
+            queue_PL3.push_back(current_table);
+         }
+
+         page_table_entry_occupied_as_address[current_level] += current_table->occupancy_address;
+         page_table_entry_occupied_as_next_level_table[current_level] += current_table->occupancy_table;
+         page_table_entry_total[current_level] += current_table->table_size;
+
+         for (int i = 0; i < current_table->table_size; ++i) {
+            if (current_table->entries[i].entry_type == PTW_TABLE_POINTER && current_table->entries[i].next_level_table != nullptr) {
+               queue.push_back(current_table->entries[i].next_level_table);
+            }
+         }
+      }
+      double page_table_occupancy_rate[4];
+      
+      for (int i = 0; i < 4; ++i) {
+         if (page_table_entry_total[i] > 0) {
+            page_table_occupancy_rate[i] = 
+               static_cast<double>(page_table_entry_occupied_as_address[i] + page_table_entry_occupied_as_next_level_table [i]) / page_table_entry_total[i] * 100.0;
+            std::cout << "PL" << 4 - i << " occupancy rate: "
+                        << page_table_occupancy_rate[i]<< "%; " 
+                        << "page_table_entry_occupied_as_address:" << page_table_entry_occupied_as_address[i] << "; " 
+                        << "page_table_entry_occupied_as_next_level_table:" << page_table_entry_occupied_as_next_level_table[i] << "; " 
+                        << "page_table_entry_total:" << page_table_entry_total[i] << "; " << std::endl;
+         }
+      }
+      std::cout << "Overall PL4/PL3 occupancy rate: " 
+         << static_cast<double>(page_table_entry_occupied_as_address[2] + page_table_entry_occupied_as_address[3]) / (page_table_entry_occupied_as_next_level_table[1] * (512 * 512 + 512)) << std::endl;
+
+      printL2PagetableOccupancy(queue_PL3);
+   } else {
+      std::cerr << "Error: ptw is not an instance of PageTableWalkerRadix" << std::endl;
+      }
+   }
+
+   void MemoryManager::printL2PagetableOccupancy(std::vector<ptw_table*> queue_PL3) {
+      std::vector<double> occupancy;
+      std::cout << "Number of PL3 = " << queue_PL3.size() << std::endl;
+      for (int i = 0; i < queue_PL3.size(); i++) {
+         occupancy.push_back(printOccupancyOfThisTable(queue_PL3[i], i));
+      }
+      double thresholds[] = {0.5, 0.4, 0.3, 0.2, 0.1, 0.05};
+      int counts[sizeof(thresholds) / sizeof(thresholds[0])] = {0};
+
+      for (double occ : occupancy) {
+         for (int j = 0; j < sizeof(thresholds) / sizeof(thresholds[0]); j++) {
+            if (occ < thresholds[j]) {
+                  counts[j]++;
+            }
+         }
+      }
+      for (int j = 0; j < sizeof(thresholds) / sizeof(thresholds[0]); j++) {
+         std::cout << "Number of tables with occupancy < " << thresholds[j] << ": " << counts[j] << std::endl;
+      }
+   }
+
+   double MemoryManager::printOccupancyOfThisTable(ptw_table* table, int id) {
+      std::vector<ptw_table*> queue;
+      queue.push_back(table);
+      int page_table_entry_occupied_as_address = 0;
+      int page_table_entry_total = 512 * 512 + 512;
+      while (!queue.empty()) {
+         ptw_table* current_table = queue.front();
+         queue.erase(queue.begin());
+         int current_level = current_table->level;
+         page_table_entry_occupied_as_address += current_table->occupancy_address;
+         for (int i = 0; i < current_table->table_size; ++i) {
+            if (current_table->entries[i].entry_type == PTW_TABLE_POINTER && current_table->entries[i].next_level_table != nullptr) {
+               queue.push_back(current_table->entries[i].next_level_table);
+            }
+         }
+      }
+      return static_cast<double>(page_table_entry_occupied_as_address) / page_table_entry_total;
+   }
 }
-  

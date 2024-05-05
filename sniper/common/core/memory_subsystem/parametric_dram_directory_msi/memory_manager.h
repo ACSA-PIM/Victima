@@ -22,6 +22,7 @@
 #include "utopia_cache_template.h"
 #include "modrian_memory.h"
 #include "pagetable_walker_xmem.h"
+#include "pagetable_walker_radix.h"
 #include "contention_model.h"
 #include "va_area_reader.h"
 
@@ -192,6 +193,10 @@ namespace ParametricDramDirectoryMSI
          bool oracle_expressive_enabled;
          bool m_rlb_enabled;
 
+         UInt64 page_table_entry_total[4];
+         UInt64 page_table_entry_occupied_as_address[4];
+         UInt64 page_table_entry_occupied_as_next_level_table[4];
+
          //Address scaling 
          int scaling_factor;
 
@@ -244,6 +249,9 @@ namespace ParametricDramDirectoryMSI
          void setCacheCntlrAt(core_id_t core_id, MemComponent::component_t mem_component, CacheCntlr* cache_cntlr) { m_all_cache_cntlrs[CoreComponentType(core_id, mem_component)] = cache_cntlr; }
          NucaCache* getNucaCache(){ return m_nuca_cache; }
          void measureNucaStats();
+         void printPagetableOccupancy();
+         void printL2PagetableOccupancy(std::vector<ptw_table*> queue_L3);
+         double printOccupancyOfThisTable(ptw_table* table, int id);
 
          HitWhere::where_t coreInitiateMemoryAccess(
                IntPtr eip,

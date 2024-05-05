@@ -23,12 +23,12 @@ ptw_table_entry* CreateNewPtwEntryAtLevel(int level,int number_of_levels,int *le
             }
             else{
                 e->entry_type=ptw_table_entry_type::PTW_TABLE_POINTER;
-                e->next_level_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[level]));
+                e->next_level_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[level]), level);
             }
         }
         else{
             e->entry_type=ptw_table_entry_type::PTW_TABLE_POINTER;
-            e->next_level_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[level]));
+            e->next_level_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[level]), level);
         }
         
     }
@@ -38,10 +38,13 @@ ptw_table_entry* CreateNewPtwEntryAtLevel(int level,int number_of_levels,int *le
     return e;
 }
 
-ptw_table* InitiateTablePtw(int size){
+ptw_table* InitiateTablePtw(int size, int level){
     
     ptw_table* t=(ptw_table*)malloc(sizeof(ptw_table));
     t->table_size=size;
+    t->level = level;
+    t->occupancy_table = 0;
+    t->occupancy_address = 0;
     
     t->entries=(ptw_table_entry*)malloc(size*sizeof(ptw_table_entry));
     for (int i = 0; i < size; i++)

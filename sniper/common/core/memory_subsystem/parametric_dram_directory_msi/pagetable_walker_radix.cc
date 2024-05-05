@@ -17,6 +17,7 @@ namespace ParametricDramDirectoryMSI{
                                                    int *level_bit_indices,int *level_percentages, PWC* pwc, bool pwc_enabled,UtopiaCache* _shadow_cache)
     :PageTableWalker(_core->getId(), 0, _m_shmem_perf_model, pwc, pwc_enabled)
     {
+        
         if(level_bit_indices!=NULL){
             this->shadow_cache=_shadow_cache;
             this->core =_core;
@@ -31,7 +32,8 @@ namespace ParametricDramDirectoryMSI{
                 }
                 this->stats_radix.address_bit_indices[i]=level_bit_indices[i];
             }
-            this->starting_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[0]));
+            this->starting_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[0]), 0);
+            this->starting_table->level = 0;
         }
         latency_per_level = new SubsecondTime[number_of_levels];
         String name = "ptw_radix_";
@@ -128,6 +130,12 @@ namespace ParametricDramDirectoryMSI{
 
             if(starting_table->entries[a1].entry_type==ptw_table_entry_type::PTW_NONE){
                 starting_table->entries[a1]=*CreateNewPtwEntryAtLevel(1,stats_radix.number_of_levels,stats_radix.address_bit_indices,stats_radix.hit_percentages,this,address);
+                if (starting_table->entries[a1].entry_type == PTW_ADDRESS) {
+                    starting_table->occupancy_address += 1;
+                }
+                if (starting_table->entries[a1].entry_type == PTW_TABLE_POINTER) {
+                    starting_table->occupancy_table += 1;
+                }
             }
             if(starting_table->entries[a1].entry_type==ptw_table_entry_type::PTW_ADDRESS){
                 //std::cout<<std::hex<<address<<" - "<<std::hex<<a1<<" - "<<level<<" Address\n";
@@ -219,6 +227,12 @@ namespace ParametricDramDirectoryMSI{
 
             if(new_table->entries[a1].entry_type==ptw_table_entry_type::PTW_NONE){
                 new_table->entries[a1]=*CreateNewPtwEntryAtLevel(level,stats_radix.number_of_levels,stats_radix.address_bit_indices,stats_radix.hit_percentages,this, address);
+                if (new_table->entries[a1].entry_type == PTW_ADDRESS) {
+                    new_table->occupancy_address += 1;
+                }
+                if (new_table->entries[a1].entry_type == PTW_TABLE_POINTER) {
+                    new_table->occupancy_table += 1;
+                }
             }
             if(new_table->entries[a1].entry_type==ptw_table_entry_type::PTW_ADDRESS){
                 //std::cout<<std::hex<<address<<" - "<<std::hex<<a1<<" - "<<level<<" Address\n";
@@ -242,6 +256,12 @@ namespace ParametricDramDirectoryMSI{
         a1=((address>>shift_bits))&0x1ff;
         if(starting_table->entries[a1].entry_type==ptw_table_entry_type::PTW_NONE){
             starting_table->entries[a1]=*CreateNewPtwEntryAtLevel(1,stats_radix.number_of_levels,stats_radix.address_bit_indices,stats_radix.hit_percentages,this, address);
+            if (starting_table->entries[a1].entry_type == PTW_ADDRESS) {
+                starting_table->occupancy_address += 1;
+            }
+            if (starting_table->entries[a1].entry_type == PTW_TABLE_POINTER) {
+                starting_table->occupancy_table += 1;
+            }
         }
         if(starting_table->entries[a1].entry_type==ptw_table_entry_type::PTW_ADDRESS){
             
@@ -267,6 +287,12 @@ namespace ParametricDramDirectoryMSI{
 
         if(new_table->entries[a1].entry_type==ptw_table_entry_type::PTW_NONE){
             new_table->entries[a1]=*CreateNewPtwEntryAtLevel(level,stats_radix.number_of_levels,stats_radix.address_bit_indices,stats_radix.hit_percentages,this, address);
+            if (new_table->entries[a1].entry_type == PTW_ADDRESS) {
+                new_table->occupancy_address += 1;
+            }
+            if (new_table->entries[a1].entry_type == PTW_TABLE_POINTER) {
+                new_table->occupancy_table += 1;
+            }
         }
         if(new_table->entries[a1].entry_type==ptw_table_entry_type::PTW_ADDRESS){
             int page_size=0;

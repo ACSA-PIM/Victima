@@ -232,6 +232,7 @@ MemoryManager::MemoryManager(Core* core,
       xmem_enabled= Sim()->getCfg()->getBool("perf_model/xmem/enabled");
       modrian_memory_enabled= Sim()->getCfg()->getBool("perf_model/modrian_memory/enabled");
       hash_dont_cache_enabled= Sim()->getCfg()->getBool("perf_model/hash_dont_cache/enabled");
+      chf_enabled= Sim()->getCfg()->getBool("perf_model/chf/enabled");
       hash_baseline_enabled= Sim()->getCfg()->getBool("perf_model/hash_baseline/enabled");
       parallel_ptw = Sim()->getCfg()->getInt("perf_model/ptw/parallel");
       m_potm_enabled = Sim()->getCfg()->getBool("perf_model/tlb/potm_enabled");
@@ -382,6 +383,15 @@ MemoryManager::MemoryManager(Core* core,
          int small_page_size=Sim()->getCfg()->getInt("perf_model/hash_baseline/small_page_size");
          int small_page_percentage=Sim()->getCfg()->getInt("perf_model/hash_baseline/small_page_percentage");
          ptw = new HashTablePTW(page_table_bits,small_page_size,large_page_size,small_page_percentage,core,shmem_perf_model,pwc,false);
+         ptw->setMemoryManager(this);
+      }
+
+      if(chf_enabled){
+         int page_table_bits=Sim()->getCfg()->getInt("perf_model/chf/page_table_size_in_bits");
+         int large_page_size=Sim()->getCfg()->getInt("perf_model/chf/large_page_size");
+         int small_page_size=Sim()->getCfg()->getInt("perf_model/chf/small_page_size");
+         int large_page_percentage=Sim()->getCfg()->getInt("perf_model/chf/large_page_percentage");
+         ptw = new PageTableCHF(page_table_bits,small_page_size,large_page_size,large_page_percentage,core,shmem_perf_model,pwc,false);
          ptw->setMemoryManager(this);
       }
 
@@ -812,7 +822,8 @@ MemoryManager::~MemoryManager()
 {
    
    UInt32 i;
-   printPagetableOccupancy();
+   if (radix_enabled == true)
+      printPagetableOccupancy();
    getNetwork()->unregisterCallback(SHARED_MEM_1);
    
    // Delete the Models

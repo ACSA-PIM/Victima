@@ -24,6 +24,7 @@
 #include "modrian_memory.h"
 #include "pagetable_walker_xmem.h"
 #include "pagetable_walker_radix.h"
+#include "pagetable_walker_chf.h"
 #include "contention_model.h"
 #include "va_area_reader.h"
 
@@ -189,6 +190,7 @@ namespace ParametricDramDirectoryMSI
 
          bool hash_dont_cache_enabled;
          bool hash_baseline_enabled;
+         bool chf_enabled;
          bool radix_enabled;
          bool xmem_enabled;
          bool modrian_memory_enabled;

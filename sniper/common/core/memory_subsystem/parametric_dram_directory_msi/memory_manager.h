@@ -14,6 +14,7 @@
 #include "shared_cache_block_info.h"
 #include "subsecond_time.h"
 #include "pagetable_walker.h"
+#include "pagetable_walker_chf.h"
 #include "pagetable_walker_radix.h"
 #include "tlb.h"
 #include "cuckoo_tlb.h"
@@ -24,7 +25,6 @@
 #include "modrian_memory.h"
 #include "pagetable_walker_xmem.h"
 #include "pagetable_walker_radix.h"
-#include "pagetable_walker_chf.h"
 #include "contention_model.h"
 #include "va_area_reader.h"
 

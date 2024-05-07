@@ -1,3 +1,6 @@
+#ifndef PTWCHF
+#define PTWCHF
+
 #include <stdint.h>
 #include <iostream>
 #include "page_table_walker_types.h"
@@ -5,23 +8,22 @@
 #include "cache_cntlr.h"
 #include "fixed_types.h"
 #include "city.h"
+#include "memory_manager.h"
 namespace ParametricDramDirectoryMSI{
     class PageTableCHF: public PageTableWalker{
-        struct entry{
-            bool empty;
-            long vpn;
-            int ptes[4];
-        };
+        struct stats_radix{
+            int number_of_levels; 
+            int *address_bit_indices;
+        } stats_radix;
 
-        entry* small_page_table;
-        entry* large_page_table;
+        ptw_table* starting_table;
+
         Core* core;
         CacheCntlr *cache;
         ShmemPerfModel* m_shmem_perf_model;
+        SubsecondTime *latency_per_level;
 
         int table_size_in_bits;
-        int small_page_size_in_bits;
-        int large_page_size_in_bits;
         int large_page_percentage;
 
         UInt64 page_table_walks;
@@ -37,12 +39,13 @@ namespace ParametricDramDirectoryMSI{
         SubsecondTime total_latency_page_fault;
 
         public:
-            PageTableCHF(int table_size_in_bits, int small_page_size_in_bits, int big_page_size_in_bits, int large_page_percentage, Core* _core, ShmemPerfModel* _m_shmem_perf_model, PWC* pwc, bool pwc_enabled);
+            PageTableCHF(int number_of_levels, int *level_bit_indices, int table_size_in_bits, int large_page_percentage, Core* core, ShmemPerfModel* m_shmem_perf_model, PWC* pwc, bool pwc_enabled);
             int hash_function(IntPtr address);
-            SubsecondTime init_walk(IntPtr eip, IntPtr address, UtopiaCache* shadow_cache, CacheCntlr *cache, Core::lock_signal_t lock_signal, Byte* _data_buf, UInt32 _data_length, bool modeled, bool count) ;
-            SubsecondTime access_cache(IntPtr eip, IntPtr address, UtopiaCache* shadow_cache, CacheCntlr *cache, Core::lock_signal_t lock_signal, Byte* _data_buf, UInt32 _data_length, bool modeled, bool count);
+            SubsecondTime init_walk(IntPtr eip, IntPtr address, UtopiaCache* shadow_cache, CacheCntlr *cache, Core::lock_signal_t lock_signal, Byte* _data_buf, UInt32 _data_length, bool modeled, bool count);
+            SubsecondTime InitializeWalkRecursive(IntPtr eip, IntPtr address,int level, ptw_table* new_table, Core::lock_signal_t lock_signal, Byte* data_buf, UInt32 data_length,bool modeled, bool count);
             int init_walk_functional(IntPtr address);
             int handle_page_fault(IntPtr address, int hash_result, int hash_result2);
             bool isPageFault(IntPtr address);
     };
 }
+#endif //PTWCHF

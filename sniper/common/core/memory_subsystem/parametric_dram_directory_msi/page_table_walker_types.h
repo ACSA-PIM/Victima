@@ -26,5 +26,5 @@ struct ptw_table{
 
 ptw_table* InitiateTablePtw(int size, int level);
 ptw_table_entry* CreateNewPtwEntryAtLevel(int level,int number_of_levels,int *level_indices,int *level_percentages,PageTableWalker *ptw, IntPtr address);
-
+ptw_table_entry* CreateNewPtwEntryAtLevelCHF(int level, int number_of_levels, int *level_bit_indices, PageTableWalker *ptw, IntPtr address);
 #endif 

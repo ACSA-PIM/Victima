@@ -387,11 +387,15 @@ MemoryManager::MemoryManager(Core* core,
       }
 
       if(chf_enabled){
+         int levels_ptw=Sim()->getCfg()->getInt("perf_model/ptw_radix/levels");
+         int indices_ptw[levels_ptw+1];
+         for (int i = 0; i < levels_ptw+1; i++)
+         {
+            indices_ptw[i]=Sim()->getCfg()->getIntArray("perf_model/ptw_radix/indices",i); //@kanellok reconfigurable PTW
+         }
          int page_table_bits=Sim()->getCfg()->getInt("perf_model/chf/page_table_size_in_bits");
-         int large_page_size=Sim()->getCfg()->getInt("perf_model/chf/large_page_size");
-         int small_page_size=Sim()->getCfg()->getInt("perf_model/chf/small_page_size");
          int large_page_percentage=Sim()->getCfg()->getInt("perf_model/chf/large_page_percentage");
-         ptw = new PageTableCHF(page_table_bits,small_page_size,large_page_size,large_page_percentage,core,shmem_perf_model,pwc,false);
+         ptw = new PageTableCHF(levels_ptw, indices_ptw, page_table_bits, large_page_percentage, core, shmem_perf_model, pwc, true);
          ptw->setMemoryManager(this);
       }
 
@@ -1071,7 +1075,7 @@ TranslationResult MemoryManager::accessTLBSubsystem(IntPtr eip, TLB * tlb, IntPt
    
    if (hit == TLB::where_t::MISS && modeled ) //TLB Miss: Perform Page Table walk
    {
-          if(radix_enabled || ptw_cuckoo_enabled || hash_dont_cache_enabled || hash_baseline_enabled || m_virtualized){
+          if(radix_enabled || ptw_cuckoo_enabled || hash_dont_cache_enabled || chf_enabled || hash_baseline_enabled || m_virtualized){
               
             SubsecondTime ptw_contention_latency = SubsecondTime::Zero();
             SubsecondTime t_ptw_begin = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);

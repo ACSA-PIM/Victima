@@ -5,6 +5,31 @@
 #include <time.h> 
 using namespace ParametricDramDirectoryMSI;
 
+ptw_table_entry* CreateNewPtwEntryAtLevelCHF(int level, int number_of_levels, int *level_bit_indices, PageTableWalker *ptw, IntPtr address){
+    ptw_table_entry* e=(ptw_table_entry*)malloc(sizeof(ptw_table_entry));
+    if(level!=number_of_levels){
+        if( (level == number_of_levels-1)){
+            int page_size = Sim()->getAllocationManager()->defaultPageFaultHandler();     
+            if(page_size == 21 && (address % (int)pow(2.0,(int)level_bit_indices[level]) == 0)){
+                e->entry_type=ptw_table_entry_type::PTW_ADDRESS;
+                ptw->stats.number_of_2MB_pages++;
+            }
+            else{
+                e->entry_type=ptw_table_entry_type::PTW_TABLE_POINTER;
+                e->next_level_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[level]), level);
+            }
+        }
+        else{
+            e->entry_type=ptw_table_entry_type::PTW_TABLE_POINTER;
+            e->next_level_table=InitiateTablePtw((int)pow(2.0,(float)level_bit_indices[level]), level);
+        }
+    }
+    else{
+        e->entry_type=ptw_table_entry_type::PTW_ADDRESS;
+    }
+    return e;
+}
+
 ptw_table_entry* CreateNewPtwEntryAtLevel(int level,int number_of_levels,int *level_bit_indices,int *level_percentages,PageTableWalker *ptw, IntPtr address){
 
     ptw_table_entry* e=(ptw_table_entry*)malloc(sizeof(ptw_table_entry));

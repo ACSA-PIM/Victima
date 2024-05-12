@@ -171,6 +171,7 @@ namespace ParametricDramDirectoryMSI
        if      (is_dtlb || is_nested || is_itlb) return where_t::L1;
        else if (is_stlb) return where_t::L2;
        else if (is_potm) return where_t::POTM;
+       else return where_t::CUCKOO_POTM;
     }
 
 

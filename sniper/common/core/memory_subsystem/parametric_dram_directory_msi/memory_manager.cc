@@ -435,10 +435,11 @@ MemoryManager::MemoryManager(Core* core,
       int swaps = Sim()->getCfg()->getInt("perf_model/cuckoo_potm_tlb/swaps");
       int priority = Sim()->getCfg()->getInt("perf_model/cuckoo_potm_tlb/priority");
       String tlb_placement = Sim()->getCfg()->getString("perf_model/cuckoo_potm_tlb/tlb_placement");
+      UInt32 cuckoo_potm_size_per_d = cuckoo_potm_size / cuckoo_potm_d;
       
       if(m_cuckoo_potm_enabled){
          std::cout << "[VM] CUCKOO POTM is enabled " << std::endl;
-         m_cuckoo_potm_tlb = new CUCKOO_TLB("cuckoo_potm_tlb", "perf_model/cuckoo_potm_tlb", getCore()->getId(), shmem_perf_model, cuckoo_potm_d, strdup(hash_func.c_str()), cuckoo_potm_size, rehash_threshold, scale, swaps, priority, page_size_list,  number_of_page_sizes, tlb_placement, ptw); 
+         m_cuckoo_potm_tlb = new CUCKOO_TLB("cuckoo_potm_tlb", "perf_model/cuckoo_potm_tlb", getCore()->getId(), shmem_perf_model, cuckoo_potm_d, strdup(hash_func.c_str()), cuckoo_potm_size_per_d, rehash_threshold, scale, swaps, priority, page_size_list,  number_of_page_sizes, tlb_placement, ptw); 
       }
 
       UInt32 stlb_size = Sim()->getCfg()->getInt("perf_model/stlb/size");

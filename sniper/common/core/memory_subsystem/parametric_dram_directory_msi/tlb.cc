@@ -171,7 +171,6 @@ namespace ParametricDramDirectoryMSI
        if      (is_dtlb || is_nested || is_itlb) return where_t::L1;
        else if (is_stlb) return where_t::L2;
        else if (is_potm) return where_t::POTM;
-       else return where_t::CUCKOO_POTM;
     }
 
 
@@ -322,74 +321,139 @@ namespace ParametricDramDirectoryMSI
     }
     else if (potm_enabled && !is_nested && level==2) // We have an L2 TLB Miss and POTM ISCA 2017 is enabled
     {
-      TLB* potm = m_manager->getPOTM();
-      where_t hit;
-      hit = potm->lookup(address, now, false , 3, model_count, lock_signal); // @kanellok @tlb_address_access
-      
-      IntPtr vpn_4kb =(address >> 12);
-      IntPtr vpn_2mb =(address >> 21);
+        TLB* potm = m_manager->getPOTM();
+        where_t hit;
+        hit = potm->lookup(address, now, false , 3, model_count, lock_signal); // @kanellok @tlb_address_access
+        
+        IntPtr vpn_4kb =(address >> 12);
+        IntPtr vpn_2mb =(address >> 21);
 
-      IntPtr tlb_address_4KB = (IntPtr)software_tlb+((vpn_4kb % m_size) * m_associativity)*16; // @Qingcai: Each entry is 16 Byte
-      IntPtr tlb_address_2MB = (IntPtr)software_tlb+((vpn_2mb % m_size) * m_associativity)*16;
+        IntPtr tlb_address_4KB = (IntPtr)software_tlb+((vpn_4kb % m_size) * m_associativity)*16; // @Qingcai: Each entry is 16 Byte
+        IntPtr tlb_address_2MB = (IntPtr)software_tlb+((vpn_2mb % m_size) * m_associativity)*16;
 
-      
-      CacheCntlr* l1dcache = m_manager->getCacheCntlrAt(m_core_id,MemComponent::component_t::L1_DCACHE);
-      SubsecondTime t_start = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);    
-      CacheBlockInfo::block_type_t block_type =  CacheBlockInfo::block_type_t::TLB_ENTRY;
-            
-      IntPtr cache_address_small_page = (tlb_address_4KB) & (~((64 - 1))); 
+        bool potm_high_associativity_enabled = Sim()->getCfg()->getBool("perf_model/potm_tlb/high_associativity_enabled");
+        int potm_high_associativity = Sim()->getCfg()->getInt("perf_model/potm_tlb/high_associativity");
+        String potm_high_associativity_placement = Sim()->getCfg()->getString("perf_model/cuckoo_potm_tlb/tlb_placement");
+        int dram_page_size = Sim()->getCfg()->getInt("perf_model/dram/ddr/dram_page_size");
+        int channel_offset = Sim()->getCfg()->getInt("perf_model/dram/ddr/channel_offset");
+        int num_bank = Sim()->getCfg()->getInt("perf_model/dram/ddr/num_banks");
+        int num_channel = Sim()->getCfg()->getInt("perf_model/dram/ddr/num_channels");
+        SubsecondTime latency_4KB;
+        SubsecondTime latency_2MB;
 
-      //When we search inside the POTM, we bring the software structure inside the cache hierarchy
-      l1dcache->processMemOpFromCore(
-                        0,
-                        lock_signal,
-                        Core::mem_op_t::READ,
-                        cache_address_small_page, 0,
-                        NULL, 64,
-                        true,
-                        true, block_type, SubsecondTime::Zero());
-          
-      SubsecondTime t_end = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
-      SubsecondTime latency_4KB = t_end - t_start;
-      getShmemPerfModel()->setElapsedTime(ShmemPerfModel::_USER_THREAD,t_start);
+        if (potm_high_associativity_enabled) {
+            IntPtr potm_way_size = m_size / potm_high_associativity; // SLTB entries per way
+            std::vector<IntPtr> tlb_addresses_4KB;
+            std::vector<IntPtr> tlb_addresses_2MB;
 
-      t_start = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);                
-      IntPtr cache_address_large_page =(tlb_address_2MB) & (~((64 - 1))); 
-      l1dcache->processMemOpFromCore(
-                        0,
-                        lock_signal,
-                        Core::mem_op_t::READ,
-                        cache_address_large_page, 0,
-                        NULL, 64,
-                        true,
-                        true, block_type, SubsecondTime::Zero());
-      t_end = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
-      SubsecondTime latency_2MB = t_end - t_start;
-      getShmemPerfModel()->setElapsedTime(ShmemPerfModel::_USER_THREAD,t_start);
+            for (int i = 0; i < potm_high_associativity; i++) {
+                tlb_addresses_4KB.push_back((IntPtr)software_tlb + ((vpn_4kb % potm_way_size) + i * potm_way_size) * 16);
+                tlb_addresses_2MB.push_back((IntPtr)software_tlb + ((vpn_2mb % potm_way_size) + i * potm_way_size) * 16);
+            }
 
-      final_potm_latency = SubsecondTime::Zero();
-      
-      if(hit != TLB::MISS){
+            CacheCntlr* l1dcache = m_manager->getCacheCntlrAt(m_core_id,MemComponent::component_t::L1_DCACHE);
+            SubsecondTime t_start = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);           
+            SubsecondTime t_end; 
+            for (IntPtr addr: tlb_addresses_4KB) {
+                IntPtr cache_address = addr & (~((64 - 1)));
+                if (potm_high_associativity_placement == "across_channels") {
+                    cache_address = map_address_to_channel(cache_address, addr % num_channel, channel_offset, num_channel);
+                }
+                else if (potm_high_associativity_placement == "across_banks") {
+                    cache_address = map_address_to_bank(cache_address, addr % num_bank, dram_page_size, num_bank, channel_offset, num_channel);
+                }
+                CacheBlockInfo::block_type_t block_type =  CacheBlockInfo::block_type_t::TLB_ENTRY;
+                l1dcache->processMemOpFromCore(
+                    0,
+                    lock_signal,
+                    Core::mem_op_t::READ,
+                    cache_address, 0,
+                    NULL, 64,
+                    true,
+                    true, block_type, SubsecondTime::Zero());
+                t_end = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
+                getShmemPerfModel()->setElapsedTime(ShmemPerfModel::_USER_THREAD,t_start);
+            }
+            latency_4KB = t_end - t_start;
+        
+            for (IntPtr addr: tlb_addresses_2MB) {
+                IntPtr cache_address = addr & (~((64 - 1)));
+                if (potm_high_associativity_placement == "across_channels") {
+                    cache_address = map_address_to_channel(cache_address, addr % num_channel, channel_offset, num_channel);
+                }
+                else if (potm_high_associativity_placement == "across_banks") {
+                    cache_address = map_address_to_bank(cache_address, addr % num_bank, dram_page_size, num_bank, channel_offset, num_channel);
+                }
+                CacheBlockInfo::block_type_t block_type =  CacheBlockInfo::block_type_t::TLB_ENTRY;
+                l1dcache->processMemOpFromCore(
+                    0,
+                    lock_signal,
+                    Core::mem_op_t::READ,
+                    cache_address, 0,
+                    NULL, 64,
+                    true,
+                    true, block_type, SubsecondTime::Zero());
+                t_end = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
+                getShmemPerfModel()->setElapsedTime(ShmemPerfModel::_USER_THREAD,t_start);
+                }
+            latency_2MB = t_end - t_start;
+        } 
 
-        if (page_size == 12) // 4KB page
-        {
-          final_potm_latency = latency_4KB;
-          total_potm_latency += latency_4KB;
+        else { // original STLB code
+            CacheCntlr* l1dcache = m_manager->getCacheCntlrAt(m_core_id,MemComponent::component_t::L1_DCACHE);
+            SubsecondTime t_start = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);    
+            CacheBlockInfo::block_type_t block_type =  CacheBlockInfo::block_type_t::TLB_ENTRY;     
+            IntPtr cache_address_small_page = (tlb_address_4KB) & (~((64 - 1))); 
+
+            //When we search inside the POTM, we bring the software structure inside the cache hierarchy
+            l1dcache->processMemOpFromCore(
+                                0,
+                                lock_signal,
+                                Core::mem_op_t::READ,
+                                cache_address_small_page, 0,
+                                NULL, 64,
+                                true,
+                                true, block_type, SubsecondTime::Zero());
+                
+            SubsecondTime t_end = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
+            latency_4KB = t_end - t_start;
+            getShmemPerfModel()->setElapsedTime(ShmemPerfModel::_USER_THREAD,t_start);
+
+            t_start = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);                
+            IntPtr cache_address_large_page =(tlb_address_2MB) & (~((64 - 1))); 
+            l1dcache->processMemOpFromCore(
+                                0,
+                                lock_signal,
+                                Core::mem_op_t::READ,
+                                cache_address_large_page, 0,
+                                NULL, 64,
+                                true,
+                                true, block_type, SubsecondTime::Zero());
+            t_end = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
+            latency_2MB = t_end - t_start;
+            getShmemPerfModel()->setElapsedTime(ShmemPerfModel::_USER_THREAD,t_start);
         }
-        else if (page_size == 21) // 2MB page
-        {
-          final_potm_latency = latency_2MB;
-          total_potm_latency += latency_2MB;
 
+        final_potm_latency = SubsecondTime::Zero();
+        if(hit != TLB::MISS) {
+            if (page_size == 12) // 4KB page
+            {
+            final_potm_latency = latency_4KB;
+            total_potm_latency += latency_4KB;
+            }
+            else if (page_size == 21) // 2MB page
+            {
+            final_potm_latency = latency_2MB;
+            total_potm_latency += latency_2MB;
+
+            }
+            return TLB::POTM;
         }
-        return TLB::POTM;
-      }
-      else{
-        final_potm_latency = std::max(latency_4KB,latency_2MB); 
-        total_potm_latency += std::max(latency_4KB,latency_2MB);
-
-      }
-
+        else {
+            final_potm_latency = std::max(latency_4KB,latency_2MB); 
+            total_potm_latency += std::max(latency_4KB,latency_2MB);
+        }
+      
     }
 
 

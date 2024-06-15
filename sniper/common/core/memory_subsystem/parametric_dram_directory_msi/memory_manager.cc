@@ -420,11 +420,14 @@ MemoryManager::MemoryManager(Core* core,
 
 
       UInt32 potm_size = Sim()->getCfg()->getInt("perf_model/potm_tlb/size");
+      bool potm_high_associativity_enabled = Sim()->getCfg()->getBool("perf_model/potm_tlb/high_associativity_enabled");
       if(m_potm_enabled){
-         std::cout << "[VM] POTM is enabled " << std::endl;
+         if (potm_high_associativity_enabled)
+            std::cout << "[VM] POTM with HIGH associativity is enabled " << std::endl;
+         else 
+            std::cout << "[VM] POTM is enabled " << std::endl;
          m_potm_tlb = new TLB("potm_tlb", "perf_model/potm_tlb", getCore()->getId(),shmem_perf_model, potm_size,m_system_page_size, Sim()->getCfg()->getInt("perf_model/potm_tlb/associativity"), NULL, m_utopia_enabled, track_misses, track_accesses, page_size_list,  number_of_page_sizes, ptw);
          m_potm_tlb->setPOTMDataStructure(potm_size);
-
       }
 
       UInt32 cuckoo_potm_size = Sim()->getCfg()->getInt("perf_model/cuckoo_potm_tlb/size");
@@ -813,7 +816,7 @@ MemoryManager::~MemoryManager()
 {
    
    UInt32 i;
-   printPagetableOccupancy();
+//    printPagetableOccupancy();
    getNetwork()->unregisterCallback(SHARED_MEM_1);
    
    // Delete the Models
@@ -931,7 +934,7 @@ MemoryManager::coreInitiateMemoryAccess(
       }
    }
 
-   HitWhere::where_t result =m_cache_cntlrs[mem_component]->processMemOpFromCore(
+   HitWhere::where_t result = m_cache_cntlrs[mem_component]->processMemOpFromCore(
          eip,
          lock_signal,
          mem_op_type,

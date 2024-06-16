@@ -333,7 +333,7 @@ namespace ParametricDramDirectoryMSI
 
         bool potm_high_associativity_enabled = Sim()->getCfg()->getBool("perf_model/potm_tlb/high_associativity_enabled");
         int potm_high_associativity = Sim()->getCfg()->getInt("perf_model/potm_tlb/high_associativity");
-        String potm_high_associativity_placement = Sim()->getCfg()->getString("perf_model/cuckoo_potm_tlb/tlb_placement");
+        String potm_high_associativity_placement = Sim()->getCfg()->getString("perf_model/potm_tlb/tlb_placement");
         int dram_page_size = Sim()->getCfg()->getInt("perf_model/dram/ddr/dram_page_size");
         int channel_offset = Sim()->getCfg()->getInt("perf_model/dram/ddr/channel_offset");
         int num_bank = Sim()->getCfg()->getInt("perf_model/dram/ddr/num_banks");
